@@ -9,6 +9,19 @@ export function listarCategorias(db: DbEjecutor): Promise<Categoria[]> {
   return db.all<Categoria>('SELECT id, nombre, orden, ejemplo FROM categorias ORDER BY orden, id');
 }
 
+export interface CategoriaConConteo extends Categoria {
+  productos: number;
+}
+
+export function listarCategoriasConConteo(db: DbEjecutor): Promise<CategoriaConConteo[]> {
+  return db.all<CategoriaConConteo>(
+    `SELECT c.id, c.nombre, c.orden, c.ejemplo,
+            (SELECT COUNT(*) FROM productos p WHERE p.categoria_id = c.id) AS productos
+     FROM categorias c
+     ORDER BY c.orden, c.id`,
+  );
+}
+
 export async function crearCategoria(db: DbEjecutor, nombre: string): Promise<number> {
   const limpio = nombre.trim();
   if (!limpio) throw new Error('Escribe un nombre para la categoría.');
