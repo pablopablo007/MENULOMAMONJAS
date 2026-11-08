@@ -37,7 +37,7 @@ export function GraficoBarras({ dias, seleccionada, onSeleccionar }: Props) {
   }));
 
   return (
-    <View style={estilos.contenedor} onLayout={(e) => setAncho(e.nativeEvent.layout.width)}>
+    <View style={estilos.contenedor} testID="grafico-barras" onLayout={(e) => setAncho(e.nativeEvent.layout.width)}>
       {ancho > 0 ? (
         <BarChart
           data={datos}

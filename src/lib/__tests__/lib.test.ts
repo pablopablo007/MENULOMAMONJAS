@@ -282,6 +282,7 @@ describe('texto', () => {
   it('normaliza para buscar sin tildes', () => {
     expect(normalizar('  Café Pasado ')).toBe('cafe pasado');
     expect(normalizar('BOLÓN')).toBe('bolon');
+    expect(normalizar('Piña con Ají')).toBe('pina con aji');
   });
 
   it('convierte vacíos en null', () => {

@@ -1,24 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createContext, memo, useContext, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Calendar, LocaleConfig, type DateData } from 'react-native-calendars';
+import { Calendar, type DateData } from 'react-native-calendars';
 
 import { formatoDinero, formatoDineroCorto } from '../lib/dinero';
 import { formatoFechaLarga, formatoMes } from '../lib/fechas';
 import { TOQUE_MINIMO, colores, espacio, letra, radio } from '../theme';
-
-// Calendario en español (nombres de meses y días).
-LocaleConfig.locales.es = {
-  monthNames: [
-    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-  ],
-  monthNamesShort: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
-  dayNames: ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
-  dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
-  today: 'Hoy',
-};
-LocaleConfig.defaultLocale = 'es';
+import { PRIMER_DIA_SEMANA } from './calendarioLocale';
 
 /** La semana empieza el lunes. */
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -142,7 +130,7 @@ export function Calendario({ mesVisible, seleccionada, hoy, totales, onSeleccion
       <Contexto.Provider value={contexto}>
         <Calendar
           initialDate={mesVisible}
-          firstDay={1}
+          firstDay={PRIMER_DIA_SEMANA}
           hideExtraDays
           hideArrows
           disableMonthChange
