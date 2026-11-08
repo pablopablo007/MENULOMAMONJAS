@@ -15,6 +15,7 @@ import { aNuevoPedido, cantidadProductos, totalPedido, type ItemEnCurso } from '
 import { ErrorRespaldo, leerRespaldoDesdeTexto, nombreArchivoRespaldo, validarRespaldo } from '../respaldo';
 import {
   agruparPorSemana,
+  escalaEje,
   mejorDia,
   ordenarMasVendidos,
   resumirPeriodo,
@@ -129,6 +130,13 @@ describe('resúmenes (cálculos puros)', () => {
     ]);
     expect(semanas.map((s) => s.total)).toEqual([0, 125.5, 85.5, 0, 0, 10.25]);
     expect(semanas.reduce((suma, s) => suma + s.total, 0)).toBe(221.25);
+  });
+
+  it('escala redonda para el eje del gráfico', () => {
+    expect(escalaEje(85)).toEqual({ maximo: 100, paso: 25 });
+    expect(escalaEje(5.25)).toEqual({ maximo: 8, paso: 2 });
+    expect(escalaEje(1000)).toEqual({ maximo: 1000, paso: 250 });
+    expect(escalaEje(0)).toEqual({ maximo: 4, paso: 1 });
   });
 
   it('ordena los más vendidos por cantidad, luego por total y combina repetidos', () => {

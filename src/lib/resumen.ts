@@ -70,6 +70,20 @@ export function agruparPorSemana(dias: TotalDia[], fechaDelMes: string): TotalSe
 }
 
 /**
+ * Escala "redonda" para el eje Y de un gráfico: 85 -> máximo 100 en 4 secciones de 25.
+ * Siempre devuelve un máximo mayor que 0.
+ */
+export function escalaEje(maximo: number, secciones = 4): { maximo: number; paso: number } {
+  if (!Number.isFinite(maximo) || maximo <= 0) return { maximo: secciones, paso: 1 };
+  const pasoCrudo = maximo / secciones;
+  const magnitud = 10 ** Math.floor(Math.log10(pasoCrudo));
+  const opciones = [1, 2, 2.5, 5, 10];
+  const factor = opciones.find((o) => o * magnitud >= pasoCrudo) ?? 10;
+  const paso = factor * magnitud;
+  return { maximo: paso * secciones, paso };
+}
+
+/**
  * Ordena los productos más vendidos: más cantidad primero, luego más dinero y luego por nombre.
  * Si llega el mismo producto en varias filas, las combina.
  */
