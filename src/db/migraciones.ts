@@ -4,6 +4,7 @@
  * las migraciones con versión mayor a la guardada.
  */
 import { cargarDatosEjemplo } from './seed';
+import { TABLAS_NUBE, marcarTodoPendiente } from './syncRepo';
 import type { Db, DbEjecutor } from './tipos';
 
 export interface Migracion {
@@ -65,6 +66,39 @@ CREATE INDEX idx_pedido_items_producto_id ON pedido_items(producto_id);
 CREATE INDEX idx_productos_categoria_id ON productos(categoria_id);
 `;
 
+/**
+ * Cola de cambios por subir a la nube: una fila por registro creado, editado o borrado.
+ * La llenan triggers, así ninguna pantalla ni repositorio tiene que acordarse de avisar.
+ * `marca` crece con cada cambio: al terminar de subir solo se quita la fila si no volvió a cambiar.
+ */
+function esquemaV2(): string {
+  const triggers = TABLAS_NUBE.map(
+    (tabla) => `
+CREATE TRIGGER sync_${tabla}_insert AFTER INSERT ON ${tabla} BEGIN
+  INSERT OR REPLACE INTO sync_pendientes (tabla, fila_id, borrado, marca)
+  VALUES ('${tabla}', NEW.id, 0, (SELECT COALESCE(MAX(marca), 0) + 1 FROM sync_pendientes));
+END;
+CREATE TRIGGER sync_${tabla}_update AFTER UPDATE ON ${tabla} BEGIN
+  INSERT OR REPLACE INTO sync_pendientes (tabla, fila_id, borrado, marca)
+  VALUES ('${tabla}', NEW.id, 0, (SELECT COALESCE(MAX(marca), 0) + 1 FROM sync_pendientes));
+END;
+CREATE TRIGGER sync_${tabla}_delete AFTER DELETE ON ${tabla} BEGIN
+  INSERT OR REPLACE INTO sync_pendientes (tabla, fila_id, borrado, marca)
+  VALUES ('${tabla}', OLD.id, 1, (SELECT COALESCE(MAX(marca), 0) + 1 FROM sync_pendientes));
+END;`,
+  ).join('\n');
+  return `
+CREATE TABLE sync_pendientes (
+  tabla TEXT NOT NULL,
+  fila_id INTEGER NOT NULL,
+  borrado INTEGER NOT NULL DEFAULT 0,
+  marca INTEGER NOT NULL,
+  PRIMARY KEY (tabla, fila_id)
+);
+${triggers}
+`;
+}
+
 export const MIGRACIONES: Migracion[] = [
   {
     version: 1,
@@ -73,6 +107,15 @@ export const MIGRACIONES: Migracion[] = [
       await tx.exec(ESQUEMA_V1);
       // La primera vez que se abre la app se cargan los datos de ejemplo.
       await cargarDatosEjemplo(tx);
+    },
+  },
+  {
+    version: 2,
+    descripcion: 'Cola de cambios para sincronizar con la nube (Supabase)',
+    async aplicar(tx) {
+      await tx.exec(esquemaV2());
+      // Todo lo que ya existe queda pendiente de subir la primera vez.
+      await marcarTodoPendiente(tx);
     },
   },
 ];

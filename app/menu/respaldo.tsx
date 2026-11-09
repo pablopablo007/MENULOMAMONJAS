@@ -8,7 +8,7 @@ import { SelectorFecha } from '../../src/components/SelectorFecha';
 import { Tarjeta } from '../../src/components/Tarjeta';
 import { useDb } from '../../src/db/DbContext';
 import { obtenerUltimoRespaldo, registrarRespaldo } from '../../src/db/ajustesRepo';
-import { listarPedidosRango } from '../../src/db/pedidosRepo';
+import { borrarTodosLosPedidos, listarPedidosRango } from '../../src/db/pedidosRepo';
 import { contarDatos, exportarRespaldo, restaurarRespaldo, type ConteoDatos } from '../../src/db/respaldoRepo';
 import { useAlEnfocar } from '../../src/hooks/useAlEnfocar';
 import { generarCsvVentas } from '../../src/lib/csv';
@@ -27,6 +27,7 @@ import {
 } from '../../src/lib/fechas';
 import { ErrorRespaldo, leerRespaldoDesdeTexto, nombreArchivoRespaldo } from '../../src/lib/respaldo';
 import { plural } from '../../src/lib/texto';
+import { useNube } from '../../src/nube/NubeContext';
 import { compartirArchivo, elegirArchivoDeTexto } from '../../src/servicios/archivos';
 import { usePedidoActual } from '../../src/store/pedidoActual';
 import { TOQUE_MINIMO, colores, espacio, letra, radio } from '../../src/theme';
@@ -35,7 +36,7 @@ import type { Respaldo } from '../../src/types';
 const DIAS_AVISO = 7;
 
 type Rango = 'hoy' | 'semana' | 'mes' | 'mesAnterior' | 'personalizado';
-type Ocupado = 'respaldo' | 'csv' | 'restaurar' | null;
+type Ocupado = 'respaldo' | 'csv' | 'restaurar' | 'borrar' | null;
 
 function rangoPredefinido(rango: Exclude<Rango, 'personalizado'>, hoy: string): [string, string] {
   switch (rango) {
@@ -71,6 +72,7 @@ function CampoFecha({ etiqueta, valor, onPress }: { etiqueta: string; valor: str
 
 export default function RespaldoPantalla() {
   const db = useDb();
+  const nube = useNube();
   const hoy = hoyISO();
   const [ultimo, setUltimo] = useState<string | null>(null);
   const [conteo, setConteo] = useState<ConteoDatos | null>(null);
@@ -193,6 +195,35 @@ export default function RespaldoPantalla() {
     );
   };
 
+  const aplicarBorrado = async () => {
+    setOcupado('borrar');
+    try {
+      const borrados = await borrarTodosLosPedidos(db);
+      // Si hay nube, los pedidos se borran también allá en la siguiente sincronización.
+      void nube.sincronizarAhora();
+      Alert.alert('Listo', `${plural(borrados, 'pedido borrado', 'pedidos borrados')}. El próximo pedido será el #1.`);
+      cargar();
+    } catch (e) {
+      Alert.alert('No se pudieron borrar los pedidos', mensajeDeError(e));
+    } finally {
+      setOcupado(null);
+    }
+  };
+
+  const confirmarBorrarPedidos = () => {
+    const cantidad = conteo ? plural(conteo.pedidos, 'pedido', 'pedidos') : 'todos los pedidos';
+    Alert.alert(
+      '¿Borrar todos los pedidos?',
+      `Se BORRARÁN ${cantidad} de este celular${nube.estado === 'conectada' ? ' y de la nube' : ''}, también los resúmenes de ventas. ` +
+        'El menú y las categorías no se tocan. Esta acción no se puede deshacer.\n\n' +
+        'Úsalo solo para empezar de cero después de probar la app.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Borrar pedidos', style: 'destructive', onPress: () => void aplicarBorrado() },
+      ],
+    );
+  };
+
   const dias = ultimo ? diasDesde(ultimo) : null;
   const aviso = dias === null || dias > DIAS_AVISO;
 
@@ -273,6 +304,23 @@ export default function RespaldoPantalla() {
           cargando={ocupado === 'restaurar'}
           deshabilitado={ocupado !== null}
           onPress={() => void restaurar()}
+        />
+      </Tarjeta>
+
+      <Tarjeta estilo={estilos.tarjeta}>
+        <Text style={estilos.titulo}>Empezar de cero</Text>
+        <Text style={estilos.texto}>
+          Borra todos los pedidos{conteo ? ` (${plural(conteo.pedidos, 'pedido', 'pedidos')})` : ''} para dejar las ventas en
+          cero, por ejemplo después de probar la app. El menú y las categorías se quedan como están.
+        </Text>
+        <Boton
+          titulo="Borrar todos los pedidos"
+          icono="trash-outline"
+          variante="peligro"
+          grande
+          cargando={ocupado === 'borrar'}
+          deshabilitado={ocupado !== null || conteo?.pedidos === 0}
+          onPress={confirmarBorrarPedidos}
         />
       </Tarjeta>
 

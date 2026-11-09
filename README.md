@@ -1,9 +1,10 @@
-# Pedidos Monjas
+# Loma de Monjas
 
 App móvil para que un mesero **tome pedidos** en el restaurante y vea **resúmenes de ventas**.
 
-- Todo se guarda **en el celular** con SQLite: no hay servidor, ni base de datos en la nube, ni se necesita internet.
-- Sin login, sin PIN, sin usuarios: se abre y se usa.
+- Todo se guarda **en el celular** con SQLite: funciona sin internet.
+- Opcional: **copia automática en la nube con Supabase** (se inicia sesión una vez con la cuenta del local). Ver [Nube con Supabase](#nube-con-supabase).
+- La app se abre y se usa directo, sin PIN.
 - Funciona en Android (prioridad) y en iOS.
 
 Hecha con Expo SDK 58, React Native, TypeScript y Expo Router.
@@ -18,10 +19,11 @@ Hecha con Expo SDK 58, React Native, TypeScript y Expo Router.
 4. [Probarla en el celular con Expo Go](#probarla-en-el-celular-con-expo-go)
 5. [Generar el APK con EAS Build e instalarlo](#generar-el-apk-con-eas-build-e-instalarlo)
 6. [Respaldos: cómo hacerlos y cómo restaurarlos](#respaldos-cómo-hacerlos-y-cómo-restaurarlos)
-7. [Pruebas y verificación](#pruebas-y-verificación)
-8. [Estructura del código](#estructura-del-código)
-9. [Base de datos](#base-de-datos)
-10. [Decisiones tomadas](#decisiones-tomadas)
+7. [Nube con Supabase](#nube-con-supabase)
+8. [Pruebas y verificación](#pruebas-y-verificación)
+9. [Estructura del código](#estructura-del-código)
+10. [Base de datos](#base-de-datos)
+11. [Decisiones tomadas](#decisiones-tomadas)
 
 ---
 
@@ -57,7 +59,8 @@ La app tiene tres pestañas abajo:
 - **Editar** y **eliminar**. Si el producto ya tiene pedidos, eliminarlo solo lo desactiva (para no cambiar el historial).
 - **Categorías**: crear, renombrar, cambiar el orden (flechas ↑ ↓) y eliminar las que estén vacías.
 - **Borrar datos de ejemplo**: la primera vez la app trae 4 categorías y 12 productos de ejemplo para probar.
-- **Respaldo**: exportar, exportar ventas a CSV y restaurar (ver más abajo).
+- **Respaldo**: exportar, exportar ventas a CSV, restaurar y **Borrar todos los pedidos** (para empezar de cero después de probar; el menú no se toca y, con la nube conectada, también se borran allá).
+- **Nube**: iniciar sesión en Supabase, ver si todo está subido, sincronizar ahora y descargar de la nube (ver más abajo).
 
 ---
 
@@ -119,7 +122,7 @@ npx eas-cli@latest build -p android --profile preview
 
 1. Abre el enlace (o escanea el QR) **desde el celular** y descarga el archivo `.apk`.
 2. Ábrelo. Android pedirá permiso para **instalar apps de origen desconocido** para el navegador o el gestor de archivos: actívalo.
-3. Toca **Instalar**. La app aparece como **Pedidos Monjas**.
+3. Toca **Instalar**. La app aparece como **Loma de Monjas**, con el logo del local.
 
 > Si instalas una versión nueva del APK encima de la anterior (misma llave de firma), los datos se conservan. Si desinstalas la app, **los datos se borran**: haz un respaldo antes.
 
@@ -153,7 +156,32 @@ Recomendación: hazlo al cerrar cada día o, al menos, una vez por semana.
 
 > La restauración **reemplaza** (no mezcla) los datos. Se hace en una sola transacción: si algo falla, los datos actuales quedan intactos. Si tienes dudas, exporta primero un respaldo de lo que hay en el celular.
 
-**Pasar los datos a un celular nuevo:** exporta un respaldo en el celular viejo, instala la app en el nuevo y restaura ese archivo.
+**Empezar de cero:** en Menú → Respaldo → **Borrar todos los pedidos** se eliminan los pedidos de prueba (con confirmación). El menú y las categorías se conservan y la numeración vuelve a #1.
+
+**Pasar los datos a un celular nuevo:** exporta un respaldo en el celular viejo, instala la app en el nuevo y restaura ese archivo (o, si usas la nube, inicia sesión y toca **Descargar de la nube**).
+
+---
+
+## Nube con Supabase
+
+La app sigue guardando todo en el celular (y funciona sin internet), pero además **sube una copia a Supabase** en segundo plano. Si el celular se pierde o se cambia, se inicia sesión en el nuevo y se descarga todo.
+
+### Cómo funciona
+- Cada vez que se crea, edita o borra algo (pedido, producto, categoría), un **trigger** de SQLite lo anota en la tabla `sync_pendientes`.
+- Con la sesión iniciada, la app sube esos cambios **cada 15 segundos** si hay alguno, al abrir la app y con **Menú → Nube → Sincronizar ahora**.
+- **Sin internet** los cambios se quedan en la cola y se suben cuando vuelva la conexión: nunca se pierde un pedido.
+- La sincronización es de **una sola vía** (celular → nube): pensada para **un solo celular**. Bajar de la nube solo pasa cuando tocas **Descargar de la nube**, y reemplaza los datos del celular.
+- La primera vez que inicias sesión: si la nube está vacía se sube todo; si ya tiene datos, la app te pregunta si **descargar** (celular nuevo) o **reemplazar la nube** con lo del celular.
+
+### Configurarla (una sola vez)
+1. Crea una cuenta gratis en [supabase.com](https://supabase.com) y un **New project** (elige la región más cercana, por ejemplo *South America (São Paulo)*; guarda la contraseña de la base de datos).
+2. En el proyecto, abre **SQL Editor → New query**, pega el contenido de [`supabase/esquema.sql`](supabase/esquema.sql) y toca **Run**. Crea las tablas y la seguridad (cada cuenta solo ve sus propios datos).
+3. Crea la cuenta del local: desde la app (**Menú → Nube → ¿No tienes cuenta? Crear una**, con **Confirm email** desactivado en Authentication → Sign In / Providers) o en **Authentication → Users → Add user → Create new user** marcando **Auto Confirm User**. Después desactiva **Allow new users to sign up** para que nadie más pueda crear cuentas.
+4. Copia los datos de conexión en **Project Settings → API** (o el botón **Connect**): la **Project URL** y la clave **anon / publishable**.
+5. En la carpeta del proyecto copia `.env.example` como **`.env.local`** y pega esos dos valores. Reinicia `npx expo start`.
+6. En la app: **Menú → Nube**, inicia sesión con el correo y la contraseña del paso 3.
+
+**Para el APK (EAS Build):** el archivo `.env.local` no se sube a EAS. Pon las mismas dos variables en `eas.json` (dentro de `build.preview.env` y `build.production.env`) o con `npx eas-cli@latest env:create`. La clave anon es pública; lo que protege los datos son las reglas RLS del paso 2 y la contraseña de la cuenta.
 
 ---
 
@@ -167,6 +195,7 @@ npx tsc --noEmit    # revisión de tipos de TypeScript
 Las pruebas cubren:
 - `src/lib`: formato de dinero y fechas, ticket promedio, mejor día, agrupación por semana, productos más vendidos, texto para compartir, CSV y validación de respaldos.
 - `src/db`: migraciones y datos de ejemplo, numeración diaria de pedidos, transacción al guardar, **que los anulados queden fuera de todos los totales**, reglas del menú y exportar/restaurar respaldos. Usan **SQLite real en memoria** (sql.js) con las mismas consultas de la app.
+- `src/nube`: sincronización con una nube falsa en memoria (subir cambios y borrados, cola sin internet, vincular, descargar y reemplazar).
 - `__tests__/flujo.test.tsx`: prueba de la app completa con Expo Router (tomar un pedido, verlo en Resúmenes, anularlo y ocultar productos no disponibles).
 
 ---
@@ -184,6 +213,7 @@ app/                         Pantallas (Expo Router)
   menu/producto.tsx          Formulario agregar/editar producto
   menu/categorias.tsx        Gestión de categorías
   menu/respaldo.tsx          Respaldo (exportar, CSV, restaurar)
+  menu/nube.tsx              Nube: sesión, estado, sincronizar y descargar
 src/
   db/                        Acceso a datos (nunca hay SQL en las pantallas)
     conexion.ts              Abre SQLite y aplica migraciones
@@ -193,14 +223,16 @@ src/
     pedidosRepo.ts           Guardar, listar y anular pedidos
     resumenRepo.ts           Totales con SQL agrupado
     respaldoRepo.ts          Exportar / restaurar
-    ajustesRepo.ts           Fecha del último respaldo
+    ajustesRepo.ts           Fecha del último respaldo, cuenta vinculada y última sincronización
+    syncRepo.ts              Cola de cambios por subir a la nube (sync_pendientes)
     DbContext.tsx            Proveedor de la base de datos para React
     expoDb.ts / tipos.ts     Adaptador de expo-sqlite a la interfaz Db
     pruebas/dbPrueba.ts      Base de datos en memoria para las pruebas
+  nube/                      Supabase: cliente, sincronización, proveedor React y textos de estado
   lib/                       Funciones puras (dinero, fechas, resúmenes, CSV, respaldo)
   components/                Calendario, PedidoSheet, Comprobante, TarjetaResumen, GraficoBarras, etc.
   store/pedidoActual.ts      Pedido en curso (Zustand)
-  servicios/                 Archivos (compartir / elegir) y vibración
+  servicios/                 Archivos (compartir / elegir), PDF y vibración
   hooks/useAlEnfocar.ts      Recarga datos al volver a una pestaña
   theme.ts                   Colores, espacios y tamaños de letra
   types.ts                   Tipos de dominio
@@ -218,14 +250,15 @@ Archivo SQLite `pedidos.db` dentro de la app. Tablas:
 | `productos` | id, categoria_id, nombre, descripcion, precio (REAL), activo (1/0), created_at, ejemplo |
 | `pedidos` | id, numero (se reinicia cada día), fecha ('yyyy-MM-dd' local), created_at (ISO), mesa, nota, total, estado ('activo' / 'anulado') |
 | `pedido_items` | id, pedido_id, producto_id, nombre_producto, precio_unitario, cantidad, nota, subtotal |
-| `ajustes` | clave, valor (guarda la fecha del último respaldo) |
+| `ajustes` | clave, valor (fecha del último respaldo, cuenta de la nube vinculada, última sincronización) |
+| `sync_pendientes` | tabla, fila_id, borrado (1/0), marca: cambios por subir a la nube (la llenan triggers) |
 | `schema_version` | versión actual del esquema |
 
 - Índices en `pedidos.fecha`, `pedido_items.pedido_id`, `pedido_items.producto_id` y `productos.categoria_id`, y un índice único `(fecha, numero)` para que nunca se repita un número de pedido en el mismo día.
 - `pedido_items` guarda una **copia del nombre y del precio**: si luego cambias un precio, los pedidos viejos no cambian.
 - Guardar un pedido (calcular el número del día + insertar pedido + insertar ítems) ocurre en **una sola transacción**.
 
-**Agregar una migración:** en `src/db/migraciones.ts`, agrega un objeto `{ version: 2, descripcion, aplicar }` al final de `MIGRACIONES`. Se ejecuta automáticamente la próxima vez que se abra la app.
+**Agregar una migración:** en `src/db/migraciones.ts`, agrega un objeto `{ version: 3, descripcion, aplicar }` al final de `MIGRACIONES`. Se ejecuta automáticamente la próxima vez que se abra la app.
 
 ---
 
@@ -233,7 +266,8 @@ Archivo SQLite `pedidos.db` dentro de la app. Tablas:
 
 Cosas que no estaban del todo definidas y cómo se resolvieron:
 
-1. **Nombre de la app**: "Pedidos Monjas" (paquete Android `com.menulomamonjas.pedidos`). Se cambia en `app.json`.
+1. **Nombre de la app**: "Loma de Monjas" (paquete Android `com.menulomamonjas.pedidos`, que no se debe cambiar para que las actualizaciones conserven los datos). Se cambia en `app.json`.
+   **Logo**: `assets/logo-local.png` (Mirador Loma de Monjas). Con él se generan el ícono, el ícono adaptativo de Android y la pantalla de arranque. Los reportes PDF llevan el nombre "Mirador Loma de Monjas" en el encabezado.
 2. **Columna extra `ejemplo`** en `categorias` y `productos`, para poder "Borrar datos de ejemplo" sin tocar los productos propios. Si editas un producto o categoría de ejemplo, pasa a ser tuyo y ya no se borra con esa opción. Los productos de ejemplo que ya tienen pedidos se desactivan en vez de borrarse.
 3. **Tabla extra `ajustes`** para guardar la fecha del último respaldo.
 4. **Nota por ítem**: aplica a todas las unidades de ese producto en el pedido. Si se necesita "1 sin cebolla y 1 normal", se escribe así en la nota.
@@ -247,4 +281,5 @@ Cosas que no estaban del todo definidas y cómo se resolvieron:
 12. **Fechas**: `pedidos.fecha` es la fecha local del celular al momento del pedido (hora de Ecuador si el celular está en esa zona); `created_at` se guarda en ISO/UTC y se muestra en hora local.
 13. **Eliminar categorías**: solo si están vacías (la especificación pedía crear, renombrar y ordenar; eliminar vacías se agregó por comodidad).
 14. **Transacciones**: se usa `withExclusiveTransactionAsync` de expo-sqlite (no disponible en web; la app es solo para Android e iOS).
-15. **Pruebas de base de datos**: usan `sql.js` (SQLite en WebAssembly) detrás de la misma interfaz `Db` que usa la app con expo-sqlite, para probar las consultas SQL reales sin un celular.
+15. **Nube**: Supabase guarda una copia con las mismas tablas y una columna `user_id` (clave primaria `(user_id, id)`, sin claves foráneas). Los ids los pone el celular, por eso la sincronización es de una sola vía y para un solo celular. Si en el futuro hay varios celulares a la vez, habrá que cambiar los ids y la numeración de pedidos.
+16. **Pruebas de base de datos**: usan `sql.js` (SQLite en WebAssembly) detrás de la misma interfaz `Db` que usa la app con expo-sqlite, para probar las consultas SQL reales sin un celular.

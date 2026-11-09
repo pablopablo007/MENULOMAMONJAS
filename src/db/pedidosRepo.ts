@@ -138,6 +138,19 @@ export async function obtenerPedido(db: DbEjecutor, id: number): Promise<PedidoC
   return { ...pedido, items };
 }
 
+/**
+ * Borra TODOS los pedidos y sus ítems (para empezar de cero después de probar la app).
+ * El menú y las categorías no se tocan. Devuelve cuántos pedidos se borraron.
+ */
+export async function borrarTodosLosPedidos(db: Db): Promise<number> {
+  return db.transaction(async (tx) => {
+    const fila = await tx.get<{ n: number }>('SELECT COUNT(*) AS n FROM pedidos');
+    await tx.run('DELETE FROM pedido_items');
+    await tx.run('DELETE FROM pedidos');
+    return fila?.n ?? 0;
+  });
+}
+
 /** Marca un pedido como anulado. Ya no cuenta en ningún total. */
 export async function anularPedido(db: DbEjecutor, id: number): Promise<void> {
   await db.run("UPDATE pedidos SET estado = 'anulado' WHERE id = ?", [id]);

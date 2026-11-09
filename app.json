@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Pedidos Monjas",
+    "name": "Loma de Monjas",
     "slug": "menulomamonjas",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -28,7 +28,16 @@
       "expo-router",
       "expo-sqlite",
       "expo-sharing",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo-local.png",
+          "imageWidth": 260,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
     ]
   }
 }

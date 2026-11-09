@@ -268,7 +268,7 @@ export function generarHtmlReporte(reporte: Reporte, generadoEn: Date = new Date
 </head>
 <body>
   <header>
-    <div class="negocio">Pedidos Monjas</div>
+    <div class="negocio">Mirador Loma de Monjas</div>
     <h1>${escaparHtml(reporte.titulo)}</h1>
     <div class="periodo">${escaparHtml(reporte.periodo)}</div>
   </header>

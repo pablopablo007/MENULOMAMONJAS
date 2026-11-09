@@ -16,6 +16,8 @@ import { Boton } from '../../src/components/Boton';
 import { EstadoVacio } from '../../src/components/EstadoVacio';
 import { useDb } from '../../src/db/DbContext';
 import { obtenerUltimoRespaldo } from '../../src/db/ajustesRepo';
+import { useNube } from '../../src/nube/NubeContext';
+import { resumenNube } from '../../src/nube/resumen';
 import {
   borrarDatosEjemplo,
   cambiarDisponibilidad,
@@ -40,6 +42,7 @@ interface Seccion {
 
 export default function MenuPantalla() {
   const db = useDb();
+  const nube = useNube();
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [productos, setProductos] = useState<ProductoConCategoria[]>([]);
   const [conEjemplos, setConEjemplos] = useState(false);
@@ -111,6 +114,8 @@ export default function MenuPantalla() {
 
   const dias = ultimoRespaldo ? diasDesde(ultimoRespaldo) : null;
   const avisoRespaldo = dias === null || dias > DIAS_AVISO_RESPALDO;
+  const estadoNube = resumenNube(nube);
+  const avisoNube = estadoNube.tono === 'aviso';
 
   const encabezado = (
     <View style={estilos.encabezado}>
@@ -129,6 +134,26 @@ export default function MenuPantalla() {
           <Text style={estilos.respaldoTitulo}>Respaldo</Text>
           <Text style={[estilos.respaldoDetalle, avisoRespaldo && { color: colores.aviso }]}>
             {ultimoRespaldo ? `Último: ${haceCuanto(ultimoRespaldo)}` : 'Aún no has hecho ningún respaldo'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={22} color={colores.textoTenue} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.push('/menu/nube')}
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir nube: ${estadoNube.titulo}`}
+        style={({ pressed }) => [estilos.respaldo, avisoNube && estilos.respaldoAviso, pressed && { opacity: 0.85 }]}
+      >
+        <Ionicons
+          name={estadoNube.tono === 'ok' ? 'cloud-done-outline' : avisoNube ? 'cloud-offline-outline' : 'cloud-outline'}
+          size={26}
+          color={estadoNube.tono === 'ok' ? colores.exito : avisoNube ? colores.aviso : colores.textoTenue}
+        />
+        <View style={estilos.respaldoTextos}>
+          <Text style={estilos.respaldoTitulo}>Nube</Text>
+          <Text style={[estilos.respaldoDetalle, avisoNube && { color: colores.aviso }]} numberOfLines={2}>
+            {estadoNube.titulo}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={22} color={colores.textoTenue} />
