@@ -116,6 +116,14 @@ export interface TotalSemana {
   pedidos: number;
 }
 
+/** Fila agrupada por mes (resultado de GROUP BY mes). */
+export interface TotalMes {
+  /** Primer día del mes ('yyyy-MM-01'). */
+  mes: string;
+  total: number;
+  pedidos: number;
+}
+
 export interface Respaldo {
   formato: 'pedidos-respaldo';
   version: 1;

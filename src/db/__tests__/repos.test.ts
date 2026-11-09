@@ -22,7 +22,7 @@ import {
   obtenerProducto,
 } from '../productosRepo';
 import { contarDatos, exportarRespaldo, restaurarRespaldo } from '../respaldoRepo';
-import { productosMasVendidos, resumenRango, totalesPorDia } from '../resumenRepo';
+import { productosMasVendidos, resumenRango, totalesPorDia, totalesPorMes } from '../resumenRepo';
 import { crearDbPrueba } from '../pruebas/dbPrueba';
 import type { Db } from '../tipos';
 
@@ -144,6 +144,14 @@ describe('resúmenes: los pedidos anulados quedan fuera de los totales', () => {
     expect(await totalesPorDia(db, '2026-11-01', '2026-11-30')).toEqual([
       { fecha: '2026-11-08', total: 16, pedidos: 2 },
       { fecha: '2026-11-10', total: 5.25, pedidos: 1 },
+    ]);
+  });
+
+  it('totales por mes', async () => {
+    await guardarPedido(db, pedido([[1, 1, 2.5]]), new Date(2026, 11, 3, 9)); // $2.50 en diciembre
+    expect(await totalesPorMes(db, '2026-01-01', '2026-12-31')).toEqual([
+      { mes: '2026-11-01', total: 21.25, pedidos: 3 },
+      { mes: '2026-12-01', total: 2.5, pedidos: 1 },
     ]);
   });
 

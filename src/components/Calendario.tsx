@@ -1,11 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
 import { createContext, memo, useContext, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Calendar, type DateData } from 'react-native-calendars';
 
 import { formatoDinero, formatoDineroCorto } from '../lib/dinero';
 import { formatoFechaLarga, formatoMes } from '../lib/fechas';
-import { TOQUE_MINIMO, colores, espacio, letra, radio } from '../theme';
+import { colores, espacio, letra, radio } from '../theme';
+import { CabeceraNavegacion } from './CabeceraNavegacion';
 import { PRIMER_DIA_SEMANA } from './calendarioLocale';
 
 /** La semana empieza el lunes. */
@@ -98,35 +98,7 @@ export function Calendario({ mesVisible, seleccionada, hoy, totales, onSeleccion
 
   return (
     <View style={estilos.contenedor}>
-      <View style={estilos.cabecera}>
-        <Pressable
-          onPress={() => onCambiarMes(-1)}
-          style={estilos.flecha}
-          accessibilityRole="button"
-          accessibilityLabel="Mes anterior"
-        >
-          <Ionicons name="chevron-back" size={26} color={colores.acento} />
-        </Pressable>
-        <Text style={estilos.mes} accessibilityRole="header">
-          {formatoMes(mesVisible)}
-        </Text>
-        <Pressable
-          onPress={() => onCambiarMes(1)}
-          style={estilos.flecha}
-          accessibilityRole="button"
-          accessibilityLabel="Mes siguiente"
-        >
-          <Ionicons name="chevron-forward" size={26} color={colores.acento} />
-        </Pressable>
-        <Pressable
-          onPress={onHoy}
-          style={({ pressed }) => [estilos.hoy, pressed && { opacity: 0.8 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Ir a hoy"
-        >
-          <Text style={estilos.hoyTexto}>Hoy</Text>
-        </Pressable>
-      </View>
+      <CabeceraNavegacion titulo={formatoMes(mesVisible)} unidad="Mes" onCambiar={onCambiarMes} onHoy={onHoy} />
       <Contexto.Provider value={contexto}>
         <Calendar
           initialDate={mesVisible}
@@ -149,37 +121,6 @@ const estilos = StyleSheet.create({
     borderRadius: radio.lg,
     paddingHorizontal: espacio.sm,
     paddingBottom: espacio.sm,
-  },
-  cabecera: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: espacio.xs,
-  },
-  flecha: {
-    width: TOQUE_MINIMO,
-    height: TOQUE_MINIMO,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mes: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: letra.media,
-    fontWeight: '800',
-    color: colores.texto,
-  },
-  hoy: {
-    minHeight: TOQUE_MINIMO - 6,
-    paddingHorizontal: espacio.md,
-    marginLeft: espacio.xs,
-    borderRadius: radio.pill,
-    backgroundColor: colores.acentoSuave,
-    justifyContent: 'center',
-  },
-  hoyTexto: {
-    fontSize: letra.pequena,
-    fontWeight: '800',
-    color: colores.acentoOscuro,
   },
   diasSemana: {
     flexDirection: 'row',

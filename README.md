@@ -41,7 +41,11 @@ La app tiene tres pestañas abajo:
 - Vibración corta al agregar productos y al generar el pedido.
 
 ### Resúmenes
-- Selector **Día | Semana | Mes** y un **calendario** siempre visible arriba (en español, la semana empieza el lunes), con flechas de mes y botón **Hoy**. Debajo de cada número de día se ve el total vendido ($85). Los días sin ventas van en gris.
+- Selector **Día | Semana | Mes**. Arriba hay un calendario distinto para cada modo (en español, la semana empieza el lunes), todos con flechas y botón **Hoy**:
+  - **Día**: calendario del mes con el total vendido debajo de cada número ($85). Los días sin ventas van en gris.
+  - **Semana**: una fila por cada semana del mes con sus 7 días (los días con ventas resaltados) y el total de la semana.
+  - **Mes**: los 12 meses del año con el total vendido de cada uno; las flechas cambian de año.
+- Botón **Exportar día / semana / mes en PDF**: genera un reporte del período elegido (cifras, pedidos o ventas por día/semana y productos más vendidos) y abre el menú de compartir (WhatsApp, Drive, correo, imprimir). Los pedidos anulados no suman; en el reporte del día aparecen tachados.
 - **Día**: total del día, número de pedidos, ticket promedio; lista de pedidos por hora ("#3 · 13:20 · Mesa 4 · $18.50") que se expande para ver los ítems, compartir o **anular** (con confirmación); y "Lo más vendido del día".
 - **Semana** (lunes a domingo, "3 – 9 nov 2026"): totales, gráfico de barras por día (tocar una barra abre ese día) y productos más vendidos.
 - **Mes** (el mes del calendario): total, pedidos, ticket promedio, **mejor día**, totales por semana y productos más vendidos.

@@ -3,7 +3,7 @@
  * sobre el rango de fechas pedido; nunca se cargan todos los pedidos en memoria.
  * Los pedidos anulados NO cuentan en ningún total.
  */
-import type { ProductoVendido, ResumenPeriodo, TotalDia } from '../types';
+import type { ProductoVendido, ResumenPeriodo, TotalDia, TotalMes } from '../types';
 import { ticketPromedio } from '../lib/resumen';
 import type { DbEjecutor } from './tipos';
 
@@ -15,6 +15,18 @@ export function totalesPorDia(db: DbEjecutor, desde: string, hasta: string): Pro
      WHERE estado = 'activo' AND fecha BETWEEN ? AND ?
      GROUP BY fecha
      ORDER BY fecha`,
+    [desde, hasta],
+  );
+}
+
+/** Total vendido y número de pedidos por mes dentro del rango (solo meses con ventas). */
+export function totalesPorMes(db: DbEjecutor, desde: string, hasta: string): Promise<TotalMes[]> {
+  return db.all<TotalMes>(
+    `SELECT substr(fecha, 1, 7) || '-01' AS mes, ROUND(SUM(total), 2) AS total, COUNT(*) AS pedidos
+     FROM pedidos
+     WHERE estado = 'activo' AND fecha BETWEEN ? AND ?
+     GROUP BY mes
+     ORDER BY mes`,
     [desde, hasta],
   );
 }

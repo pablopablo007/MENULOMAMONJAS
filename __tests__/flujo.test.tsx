@@ -29,6 +29,11 @@ function aceptarAlertas() {
   });
 }
 
+const mockCompartirPdf = jest.fn((_html: string, _nombre: string, _titulo: string) => Promise.resolve());
+jest.mock('../src/servicios/pdf', () => ({
+  compartirPdf: (html: string, nombre: string, titulo: string) => mockCompartirPdf(html, nombre, titulo),
+}));
+
 jest.setTimeout(60_000);
 
 describe('flujo completo', () => {
@@ -77,9 +82,17 @@ describe('flujo completo', () => {
     expect(screen.getByText(/^#1 · \d\d:\d\d · Mesa 4$/)).toBeTruthy();
     expect(screen.getByText('$11')).toBeTruthy(); // total del día en el calendario
 
+    // Exportar el día en PDF
+    await fireEvent.press(screen.getByText('Exportar día en PDF'));
+    await waitFor(() => expect(mockCompartirPdf).toHaveBeenCalledTimes(1));
+    expect(mockCompartirPdf.mock.calls[0][0]).toContain('Resumen del día');
+    expect(mockCompartirPdf.mock.calls[0][1]).toMatch(/^resumen-dia-\d{4}-\d{2}-\d{2}\.pdf$/);
+
     // Modo Semana con gráfico
     await fireEvent.press(screen.getByText('Semana'));
     await screen.findByText('Total de la semana');
+    expect(screen.getByText('Exportar semana en PDF')).toBeTruthy();
+    expect(screen.getByLabelText(/^Esta semana, /)).toBeTruthy(); // selector de semanas
     await fireEvent(screen.getByTestId('grafico-barras'), 'layout', { nativeEvent: { layout: { width: 320, height: 240 } } });
     expect(screen.getByText('Toca una barra para ver el detalle de ese día.')).toBeTruthy();
 
@@ -87,6 +100,10 @@ describe('flujo completo', () => {
     await fireEvent.press(screen.getByText('Mes'));
     await screen.findByText('Total del mes');
     expect(screen.getByText('Mejor día')).toBeTruthy();
+    expect(await screen.findByLabelText(/^Este mes, .*vendido \$10\.50$/)).toBeTruthy(); // selector de meses
+    await fireEvent.press(screen.getByText('Exportar mes en PDF'));
+    await waitFor(() => expect(mockCompartirPdf).toHaveBeenCalledTimes(2));
+    expect(mockCompartirPdf.mock.calls[1][0]).toContain('Resumen mensual');
 
     // Anular desde el modo Día
     await fireEvent.press(screen.getByText('Día'));

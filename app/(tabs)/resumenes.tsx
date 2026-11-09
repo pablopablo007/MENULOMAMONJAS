@@ -1,22 +1,25 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Boton } from '../../src/components/Boton';
 import { Calendario } from '../../src/components/Calendario';
 import { compartirPedido } from '../../src/components/Comprobante';
 import { EstadoVacio } from '../../src/components/EstadoVacio';
 import { GraficoBarras } from '../../src/components/GraficoBarras';
 import { ListaMasVendidos } from '../../src/components/ListaMasVendidos';
 import { PedidoDelDia } from '../../src/components/PedidoDelDia';
+import { SelectorMes } from '../../src/components/SelectorMes';
 import { SelectorSegmentado } from '../../src/components/SelectorSegmentado';
+import { SelectorSemana } from '../../src/components/SelectorSemana';
 import { GrillaResumen, TarjetaResumen } from '../../src/components/TarjetaResumen';
 import { useDb } from '../../src/db/DbContext';
 import { anularPedido, listarPedidosDelDia } from '../../src/db/pedidosRepo';
-import { productosMasVendidos, resumenRango, totalesPorDia } from '../../src/db/resumenRepo';
+import { productosMasVendidos, resumenRango, totalesPorDia, totalesPorMes } from '../../src/db/resumenRepo';
 import { useAlEnfocar } from '../../src/hooks/useAlEnfocar';
 import { formatoDinero } from '../../src/lib/dinero';
 import { mensajeDeError } from '../../src/lib/errores';
 import {
+  finAnio,
   finMes,
   finSemana,
   formatoFechaCorta,
@@ -24,15 +27,17 @@ import {
   formatoMes,
   formatoRango,
   hoyISO,
+  inicioAnio,
   inicioMes,
   inicioSemana,
-  sumarDias,
   sumarMeses,
 } from '../../src/lib/fechas';
 import { agruparPorSemana, mejorDia, resumirPeriodo, serieSemanal } from '../../src/lib/resumen';
+import { generarHtmlReporte, nombreArchivoReporte, reporteDia, reporteMes, reporteSemana, type Reporte } from '../../src/lib/reportePdf';
 import { plural } from '../../src/lib/texto';
+import { compartirPdf } from '../../src/servicios/pdf';
 import { TOQUE_MINIMO, colores, espacio, letra, radio } from '../../src/theme';
-import type { PedidoConItems, ProductoVendido, ResumenPeriodo, TotalDia } from '../../src/types';
+import type { PedidoConItems, ProductoVendido, ResumenPeriodo, TotalDia, TotalMes } from '../../src/types';
 
 type Modo = 'dia' | 'semana' | 'mes';
 
@@ -43,6 +48,12 @@ const OPCIONES_MODO: { valor: Modo; etiqueta: string }[] = [
 ];
 
 const LIMITE_MAS_VENDIDOS = 10;
+
+const EXPORTAR: Record<Modo, string> = {
+  dia: 'Exportar día en PDF',
+  semana: 'Exportar semana en PDF',
+  mes: 'Exportar mes en PDF',
+};
 
 interface DatosDia {
   fecha: string;
@@ -82,7 +93,9 @@ export default function ResumenesPantalla() {
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const [totalesMes, setTotalesMes] = useState<TotalDia[]>([]);
+  const [totalesVisibles, setTotalesVisibles] = useState<TotalDia[]>([]);
+  const [totalesAnio, setTotalesAnio] = useState<TotalMes[]>([]);
+  const [exportando, setExportando] = useState(false);
   const [dia, setDia] = useState<DatosDia | null>(null);
   const [semana, setSemana] = useState<DatosSemana | null>(null);
   const [mes, setMes] = useState<DatosMes | null>(null);
@@ -93,17 +106,31 @@ export default function ResumenesPantalla() {
 
   const lunes = inicioSemana(seleccionada);
 
-  // Totales por día del mes visible (para el calendario y el modo Mes).
+  // Totales por día del mes visible, con las semanas completas de los bordes
+  // (para el calendario, el selector de semanas y el modo Mes).
   useEffect(() => {
     if (version === 0) return;
     let vigente = true;
-    totalesPorDia(db, mesVisible, finMes(mesVisible))
-      .then((filas) => vigente && setTotalesMes(filas))
+    totalesPorDia(db, inicioSemana(mesVisible), finSemana(finMes(mesVisible)))
+      .then((filas) => vigente && setTotalesVisibles(filas))
       .catch((e: unknown) => vigente && setError(mensajeDeError(e)));
     return () => {
       vigente = false;
     };
   }, [db, mesVisible, version]);
+
+  // Totales por mes del año visible (para el selector del modo Mes).
+  const anio = inicioAnio(mesVisible);
+  useEffect(() => {
+    if (version === 0 || modo !== 'mes') return;
+    let vigente = true;
+    totalesPorMes(db, anio, finAnio(anio))
+      .then((filas) => vigente && setTotalesAnio(filas))
+      .catch((e: unknown) => vigente && setError(mensajeDeError(e)));
+    return () => {
+      vigente = false;
+    };
+  }, [db, anio, modo, version]);
 
   // Datos del modo seleccionado.
   useEffect(() => {
@@ -140,7 +167,13 @@ export default function ResumenesPantalla() {
     };
   }, [db, modo, seleccionada, lunes, mesVisible, version]);
 
-  const mapaTotales = useMemo(() => new Map(totalesMes.map((t) => [t.fecha, t.total])), [totalesMes]);
+  const totalesMes = useMemo(() => {
+    const ultimo = finMes(mesVisible);
+    return totalesVisibles.filter((t) => t.fecha >= mesVisible && t.fecha <= ultimo);
+  }, [totalesVisibles, mesVisible]);
+  const mapaTotales = useMemo(() => new Map(totalesVisibles.map((t) => [t.fecha, t.total])), [totalesVisibles]);
+  const mapaDias = useMemo(() => new Map(totalesVisibles.map((t) => [t.fecha, t])), [totalesVisibles]);
+  const mapaMeses = useMemo(() => new Map(totalesAnio.map((t) => [t.mes, t.total])), [totalesAnio]);
 
   const irADia = useCallback((fecha: string) => {
     setSeleccionada(fecha);
@@ -149,10 +182,57 @@ export default function ResumenesPantalla() {
     setModo('dia');
   }, []);
 
-  const cambiarSemana = (delta: -1 | 1) => {
-    const nueva = sumarDias(seleccionada, delta * 7);
-    setSeleccionada(nueva);
-    setMesVisible(inicioMes(nueva));
+  const irAHoy = () => {
+    setSeleccionada(hoy);
+    setMesVisible(inicioMes(hoy));
+  };
+
+  // Una semana que empieza en el mes anterior se marca con su primer día dentro del mes visible.
+  const elegirSemana = (lunesElegido: string) => {
+    setSeleccionada(lunesElegido < mesVisible ? mesVisible : lunesElegido);
+  };
+
+  const elegirMes = (primero: string) => {
+    setMesVisible(primero);
+    setSeleccionada(primero === inicioMes(hoy) ? hoy : primero);
+  };
+
+  /** Consulta los datos completos del período (todos los productos, no solo el top) y arma el reporte. */
+  const armarReporte = async (): Promise<Reporte> => {
+    if (modo === 'dia') {
+      const [pedidos, masVendidos] = await Promise.all([
+        listarPedidosDelDia(db, seleccionada),
+        productosMasVendidos(db, seleccionada, seleccionada),
+      ]);
+      return reporteDia(seleccionada, pedidos, masVendidos);
+    }
+    if (modo === 'semana') {
+      const domingo = finSemana(lunes);
+      const [dias, masVendidos] = await Promise.all([
+        totalesPorDia(db, lunes, domingo),
+        productosMasVendidos(db, lunes, domingo),
+      ]);
+      return reporteSemana(lunes, dias, masVendidos);
+    }
+    const ultimo = finMes(mesVisible);
+    const [dias, masVendidos] = await Promise.all([
+      totalesPorDia(db, mesVisible, ultimo),
+      productosMasVendidos(db, mesVisible, ultimo),
+    ]);
+    return reporteMes(mesVisible, dias, masVendidos);
+  };
+
+  const exportarPdf = async () => {
+    setExportando(true);
+    try {
+      const reporte = await armarReporte();
+      const fecha = modo === 'mes' ? mesVisible : seleccionada;
+      await compartirPdf(generarHtmlReporte(reporte), nombreArchivoReporte(modo, fecha), 'Exportar resumen en PDF');
+    } catch (e) {
+      Alert.alert('No se pudo exportar el PDF', mensajeDeError(e));
+    } finally {
+      setExportando(false);
+    }
   };
 
   const confirmarAnular = (pedido: PedidoConItems) => {
@@ -219,27 +299,7 @@ export default function ResumenesPantalla() {
     const resumen = resumirPeriodo(datos?.dias ?? []);
     return (
       <>
-        <View style={estilos.navegador}>
-          <Pressable
-            onPress={() => cambiarSemana(-1)}
-            style={estilos.flecha}
-            accessibilityRole="button"
-            accessibilityLabel="Semana anterior"
-          >
-            <Ionicons name="chevron-back" size={26} color={colores.acento} />
-          </Pressable>
-          <Text style={estilos.navegadorTexto} accessibilityRole="header">
-            {formatoRango(lunes, domingo)}
-          </Text>
-          <Pressable
-            onPress={() => cambiarSemana(1)}
-            style={estilos.flecha}
-            accessibilityRole="button"
-            accessibilityLabel="Semana siguiente"
-          >
-            <Ionicons name="chevron-forward" size={26} color={colores.acento} />
-          </Pressable>
-        </View>
+        <Text style={estilos.tituloPeriodo}>{formatoRango(lunes, domingo)}</Text>
         {!datos ? (
           <ActivityIndicator color={colores.acento} />
         ) : (
@@ -339,17 +399,43 @@ export default function ResumenesPantalla() {
     <ScrollView contentContainerStyle={estilos.contenido}>
       <SelectorSegmentado opciones={OPCIONES_MODO} valor={modo} onCambiar={setModo} />
 
-      <Calendario
-        mesVisible={mesVisible}
-        seleccionada={seleccionada}
-        hoy={hoy}
-        totales={mapaTotales}
-        onSeleccionar={irADia}
-        onCambiarMes={(delta) => setMesVisible(sumarMeses(mesVisible, delta))}
-        onHoy={() => {
-          setSeleccionada(hoy);
-          setMesVisible(inicioMes(hoy));
-        }}
+      {modo === 'dia' ? (
+        <Calendario
+          mesVisible={mesVisible}
+          seleccionada={seleccionada}
+          hoy={hoy}
+          totales={mapaTotales}
+          onSeleccionar={irADia}
+          onCambiarMes={(delta) => setMesVisible(sumarMeses(mesVisible, delta))}
+          onHoy={irAHoy}
+        />
+      ) : modo === 'semana' ? (
+        <SelectorSemana
+          mesVisible={mesVisible}
+          seleccionada={seleccionada}
+          hoy={hoy}
+          totales={mapaDias}
+          onSeleccionar={elegirSemana}
+          onCambiarMes={(delta) => setMesVisible(sumarMeses(mesVisible, delta))}
+          onHoy={irAHoy}
+        />
+      ) : (
+        <SelectorMes
+          mesVisible={mesVisible}
+          hoy={hoy}
+          totales={mapaMeses}
+          onSeleccionar={elegirMes}
+          onCambiarAnio={(delta) => elegirMes(sumarMeses(mesVisible, delta * 12))}
+          onHoy={irAHoy}
+        />
+      )}
+
+      <Boton
+        titulo={EXPORTAR[modo]}
+        icono="document-text-outline"
+        variante="secundario"
+        cargando={exportando}
+        onPress={() => void exportarPdf()}
       />
 
       {error ? (
@@ -386,25 +472,6 @@ const estilos = StyleSheet.create({
   },
   lista: {
     gap: espacio.sm,
-  },
-  navegador: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colores.tarjeta,
-    borderRadius: radio.lg,
-  },
-  flecha: {
-    width: TOQUE_MINIMO + 4,
-    height: TOQUE_MINIMO + 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navegadorTexto: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: letra.media,
-    fontWeight: '800',
-    color: colores.texto,
   },
   tarjetaGrafico: {
     backgroundColor: colores.tarjeta,

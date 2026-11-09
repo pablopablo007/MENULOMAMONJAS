@@ -3,6 +3,7 @@ import {
   addMonths,
   endOfMonth,
   endOfWeek,
+  endOfYear,
   format,
   formatDistanceStrict,
   isSameMonth,
@@ -10,6 +11,7 @@ import {
   parseISO,
   startOfMonth,
   startOfWeek,
+  startOfYear,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -61,6 +63,28 @@ export function finMes(fecha: string): string {
   return aFechaISO(endOfMonth(desdeFechaISO(fecha)));
 }
 
+export function inicioAnio(fecha: string): string {
+  return aFechaISO(startOfYear(desdeFechaISO(fecha)));
+}
+
+export function finAnio(fecha: string): string {
+  return aFechaISO(endOfYear(desdeFechaISO(fecha)));
+}
+
+/** Primer día de cada mes del año que contiene la fecha ('yyyy-01-01' ... 'yyyy-12-01'). */
+export function mesesDelAnio(fecha: string): string[] {
+  const enero = inicioAnio(fecha);
+  return Array.from({ length: 12 }, (_, i) => sumarMeses(enero, i));
+}
+
+/** Lunes de cada semana (lunes a domingo) que tiene al menos un día dentro del mes. */
+export function semanasDelMes(fecha: string): string[] {
+  const ultimo = finMes(fecha);
+  const lunes: string[] = [];
+  for (let l = inicioSemana(inicioMes(fecha)); l <= ultimo; l = sumarDias(l, 7)) lunes.push(l);
+  return lunes;
+}
+
 /** Los 7 días (lunes a domingo) de la semana que contiene la fecha. */
 export function diasDeLaSemana(fecha: string): string[] {
   const lunes = inicioSemana(fecha);
@@ -94,6 +118,16 @@ export function formatoFechaNumerica(fecha: string): string {
 /** "Noviembre 2026" */
 export function formatoMes(fecha: string): string {
   return capitalizar(format(desdeFechaISO(fecha), 'LLLL yyyy', { locale: es }));
+}
+
+/** "Nov" */
+export function formatoMesCorto(fecha: string): string {
+  return capitalizar(format(desdeFechaISO(fecha), 'LLL', { locale: es }).replace('.', ''));
+}
+
+/** "2026" */
+export function formatoAnio(fecha: string): string {
+  return format(desdeFechaISO(fecha), 'yyyy');
 }
 
 /**

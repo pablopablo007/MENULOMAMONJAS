@@ -7,11 +7,22 @@ import {
   finMes,
   formatoFechaLarga,
   formatoMes,
+  formatoMesCorto,
   formatoRango,
   inicioSemana,
   letraDia,
+  mesesDelAnio,
+  semanasDelMes,
 } from '../fechas';
 import { aNuevoPedido, cantidadProductos, totalPedido, type ItemEnCurso } from '../pedidoEnCurso';
+import {
+  escaparHtml,
+  generarHtmlReporte,
+  nombreArchivoReporte,
+  reporteDia,
+  reporteMes,
+  reporteSemana,
+} from '../reportePdf';
 import { ErrorRespaldo, leerRespaldoDesdeTexto, nombreArchivoRespaldo, validarRespaldo } from '../respaldo';
 import {
   agruparPorSemana,
@@ -77,6 +88,15 @@ describe('fechas', () => {
     expect(formatoFechaLarga('2026-11-08')).toBe('Domingo 8 de noviembre de 2026');
     expect(formatoMes('2026-11-08')).toBe('Noviembre 2026');
     expect(finMes('2026-02-10')).toBe('2026-02-28');
+  });
+
+  it('semanas de un mes y meses de un año', () => {
+    // Noviembre 2026 empieza en domingo: la primera semana es la del lunes 26 de octubre.
+    expect(semanasDelMes('2026-11-15')).toEqual(['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30']);
+    expect(mesesDelAnio('2026-11-08')).toHaveLength(12);
+    expect(mesesDelAnio('2026-11-08')[0]).toBe('2026-01-01');
+    expect(mesesDelAnio('2026-11-08')[11]).toBe('2026-12-01');
+    expect(formatoMesCorto('2026-11-01')).toBe('Nov');
   });
 
   it('reconoce fechas válidas', () => {
@@ -289,5 +309,51 @@ describe('texto', () => {
     expect(textoONulo('   ')).toBeNull();
     expect(textoONulo(' hola ')).toBe('hola');
     expect(textoONulo(undefined)).toBeNull();
+  });
+});
+
+describe('reporte PDF', () => {
+  const masVendidos = [{ producto_id: 1, nombre: 'Seco de pollo', cantidad: 2, total: 9 }];
+
+  it('reporte del día: los anulados aparecen tachados y no suman', () => {
+    const anulado = { ...pedidoEjemplo, id: 2, numero: 13, estado: 'anulado' as const };
+    const reporte = reporteDia('2026-11-08', [pedidoEjemplo, anulado], masVendidos);
+    expect(reporte.resumen).toEqual({ total: 12.75, pedidos: 1, ticketPromedio: 12.75 });
+    expect(reporte.periodo).toBe('Domingo 8 de noviembre de 2026');
+    const filaAnulada = reporte.tablas[0].filas[1];
+    expect(filaAnulada[0]).toEqual({ texto: '#13 · Anulado', tachado: true });
+
+    const html = generarHtmlReporte(reporte, new Date(2026, 10, 8, 20, 0));
+    expect(html).toContain('Resumen del día');
+    expect(html).toContain('Total del día');
+    expect(html).toContain('$12.75');
+    expect(html).toContain('Nota: Sin ají');
+    expect(html).toContain('class="tachado"');
+  });
+
+  it('reporte de la semana con los 7 días', () => {
+    const reporte = reporteSemana('2026-11-05', [{ fecha: '2026-11-04', total: 20, pedidos: 2 }], masVendidos);
+    expect(reporte.periodo).toBe('2 – 8 nov 2026');
+    expect(reporte.tablas[0].filas).toHaveLength(7);
+    expect(reporte.resumen.total).toBe(20);
+  });
+
+  it('reporte del mes con mejor día y sin días de otros meses', () => {
+    const dias: TotalDia[] = [
+      { fecha: '2026-10-31', total: 99, pedidos: 9 },
+      { fecha: '2026-11-03', total: 10, pedidos: 1 },
+      { fecha: '2026-11-20', total: 30, pedidos: 3 },
+    ];
+    const reporte = reporteMes('2026-11-01', dias, masVendidos);
+    expect(reporte.resumen.total).toBe(40);
+    expect(reporte.destacado?.valor).toBe('$30.00');
+    expect(reporte.tablas[1].filas).toHaveLength(2);
+  });
+
+  it('escapa el HTML y nombra los archivos por período', () => {
+    expect(escaparHtml('<b>"Ají" & sal</b>')).toBe('&lt;b&gt;&quot;Ají&quot; &amp; sal&lt;/b&gt;');
+    expect(nombreArchivoReporte('dia', '2026-11-08')).toBe('resumen-dia-2026-11-08.pdf');
+    expect(nombreArchivoReporte('semana', '2026-11-08')).toBe('resumen-semana-2026-11-02.pdf');
+    expect(nombreArchivoReporte('mes', '2026-11-01')).toBe('resumen-mes-2026-11.pdf');
   });
 });
