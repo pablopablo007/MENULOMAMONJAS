@@ -1,0 +1,60 @@
+# Compila un .ipa SIN FIRMAR de la app para firmarlo luego por cuenta propia
+# (Sideloadly, ESign, etc.). Se ejecuta en una Mac de GitHub Actions.
+name: iOS IPA sin firmar
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/adoring-feynman-q1xkxu]
+    paths: [".github/workflows/ios-ipa-sin-firmar.yml"]
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://lvtlttdlpzsamwgpedfn.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_UkjRr0lRiQAvJiKsjNdLPg_tH1hJtYb
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Generar proyecto nativo iOS
+        run: npx expo prebuild -p ios --clean --non-interactive
+
+      - name: Compilar (archive sin firma)
+        run: |
+          WS=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WS" .xcworkspace)
+          echo "Workspace: $WS  Scheme: $SCHEME"
+          set -o pipefail
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/app.xcarchive archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tail -200
+
+      - name: Empaquetar .ipa
+        run: |
+          mkdir -p out/Payload
+          cp -R build/app.xcarchive/Products/Applications/*.app out/Payload/
+          cd out && zip -qry LomaDeMonjas-sin-firmar.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LomaDeMonjas-ipa
+          path: out/LomaDeMonjas-sin-firmar.ipa
+          retention-days: 30
