@@ -3,7 +3,7 @@
  * al abrir la app se aplican, en orden y cada una en su propia transacción,
  * las migraciones con versión mayor a la guardada.
  */
-import { cargarDatosEjemplo } from './seed';
+import { cargarMenuLocal } from './seed';
 import { TABLAS_NUBE, marcarTodoPendiente } from './syncRepo';
 import type { Db, DbEjecutor } from './tipos';
 
@@ -102,11 +102,10 @@ ${triggers}
 export const MIGRACIONES: Migracion[] = [
   {
     version: 1,
-    descripcion: 'Esquema inicial y datos de ejemplo',
+    descripcion: 'Esquema inicial',
     async aplicar(tx) {
+      // Las primeras versiones cargaban aquí un menú de ejemplo; ahora el menú real llega en la versión 3.
       await tx.exec(ESQUEMA_V1);
-      // La primera vez que se abre la app se cargan los datos de ejemplo.
-      await cargarDatosEjemplo(tx);
     },
   },
   {
@@ -116,6 +115,13 @@ export const MIGRACIONES: Migracion[] = [
       await tx.exec(esquemaV2());
       // Todo lo que ya existe queda pendiente de subir la primera vez.
       await marcarTodoPendiente(tx);
+    },
+  },
+  {
+    version: 3,
+    descripcion: 'Menú real del local (reemplaza el menú de ejemplo)',
+    async aplicar(tx) {
+      await cargarMenuLocal(tx);
     },
   },
 ];

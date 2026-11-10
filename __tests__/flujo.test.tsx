@@ -40,37 +40,37 @@ describe('flujo completo', () => {
   it('toma un pedido, lo ve en Resúmenes y lo anula', async () => {
     await renderRouter('./app', { initialUrl: '/' });
 
-    // Pantalla inicial: Tomar pedido con los productos de ejemplo.
-    await screen.findByText('Bolón de verde');
+    // Pantalla inicial: Tomar pedido con el menú del local.
+    await screen.findByText('Salchipapa');
     expect(screen.getByText('Agrega productos al pedido')).toBeTruthy();
 
     await fireEvent.changeText(screen.getByLabelText('Mesa'), '4');
-    await fireEvent.press(screen.getByLabelText('Agregar Bolón de verde'));
-    await fireEvent.press(screen.getByLabelText('Agregar uno más de Bolón de verde'));
-    await fireEvent.press(screen.getByLabelText('Agregar Seco de pollo'));
-    expect(screen.getByText('Ver pedido · 3 productos · $10.50')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Agregar Salchipapa'));
+    await fireEvent.press(screen.getByLabelText('Agregar uno más de Salchipapa'));
+    await fireEvent.press(screen.getByLabelText('Agregar Papinuggets'));
+    expect(screen.getByText('Ver pedido · 3 productos · $7.00')).toBeTruthy();
 
     // Buscador
     await fireEvent.changeText(screen.getByLabelText('Buscar producto'), 'cafe');
-    expect(screen.getByText('Café pasado')).toBeTruthy();
-    expect(screen.queryByText('Churrasco')).toBeNull();
+    expect(screen.getByText('Café americano')).toBeTruthy();
+    expect(screen.queryByText('Hot dog')).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Buscar producto'), '');
 
     // Nota de un ítem
-    await fireEvent.press(screen.getByText('Seco de pollo'));
+    await fireEvent.press(screen.getByText('Papinuggets'));
     await fireEvent.changeText(await screen.findByLabelText('Nota'), 'sin cebolla');
     await fireEvent.press(screen.getByText('Guardar nota'));
     await waitFor(() => expect(screen.getByText('sin cebolla')).toBeTruthy());
 
     // Vista del pedido y generar
-    await fireEvent.press(screen.getByText('Ver pedido · 3 productos · $10.50'));
+    await fireEvent.press(screen.getByText('Ver pedido · 3 productos · $7.00'));
     await fireEvent.press(await screen.findByText('Generar pedido'));
 
     await screen.findByText('Pedido generado');
     expect(screen.getByText(/^Pedido #1 · Mesa 4 · \d\d:\d\d$/)).toBeTruthy();
-    expect(screen.getByText('2 × Bolón de verde')).toBeTruthy();
+    expect(screen.getByText('2 × Salchipapa')).toBeTruthy();
     expect(screen.getByText('Nota: sin cebolla')).toBeTruthy();
-    expect(screen.getAllByText('$10.50').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('$7.00').length).toBeGreaterThan(0);
 
     await fireEvent.press(screen.getByText('Nuevo pedido'));
     await screen.findByText('Agrega productos al pedido');
@@ -78,9 +78,9 @@ describe('flujo completo', () => {
     // Resúmenes: el pedido aparece en el día de hoy
     await testRouter.navigate('/resumenes');
     await screen.findByText('Total del día');
-    await waitFor(() => expect(screen.getAllByText(formatoDinero(10.5)).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(formatoDinero(7)).length).toBeGreaterThan(0));
     expect(screen.getByText(/^#1 · \d\d:\d\d · Mesa 4$/)).toBeTruthy();
-    expect(screen.getByText('$11')).toBeTruthy(); // total del día en el calendario
+    expect(screen.getByText('$7')).toBeTruthy(); // total del día en el calendario
 
     // Exportar el día en PDF
     await fireEvent.press(screen.getByText('Exportar día en PDF'));
@@ -100,7 +100,7 @@ describe('flujo completo', () => {
     await fireEvent.press(screen.getByText('Mes'));
     await screen.findByText('Total del mes');
     expect(screen.getByText('Mejor día')).toBeTruthy();
-    expect(await screen.findByLabelText(/^Este mes, .*vendido \$10\.50$/)).toBeTruthy(); // selector de meses
+    expect(await screen.findByLabelText(/^Este mes, .*vendido \$7\.00$/)).toBeTruthy(); // selector de meses
     await fireEvent.press(screen.getByText('Exportar mes en PDF'));
     await waitFor(() => expect(mockCompartirPdf).toHaveBeenCalledTimes(2));
     expect(mockCompartirPdf.mock.calls[1][0]).toContain('Resumen mensual');
@@ -118,12 +118,12 @@ describe('flujo completo', () => {
 
   it('los productos no disponibles desaparecen de Tomar pedido', async () => {
     await renderRouter('./app', { initialUrl: '/menu' });
-    await screen.findByText('Empanadas de viento');
-    await fireEvent(screen.getByLabelText('Disponible: Empanadas de viento'), 'valueChange', false);
+    await screen.findByText('Hot dog');
+    await fireEvent(screen.getByLabelText('Disponible: Hot dog'), 'valueChange', false);
     await screen.findAllByText('No disponible');
 
     await testRouter.navigate('/tomar-pedido');
-    await screen.findByText('Bolón de verde');
-    expect(screen.queryByText('Empanadas de viento')).toBeNull();
+    await screen.findByText('Salchipapa');
+    expect(screen.queryByText('Hot dog')).toBeNull();
   });
 });

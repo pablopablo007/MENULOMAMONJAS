@@ -24,6 +24,7 @@ import {
 import { contarDatos, exportarRespaldo, restaurarRespaldo } from '../respaldoRepo';
 import { productosMasVendidos, resumenRango, totalesPorDia, totalesPorMes } from '../resumenRepo';
 import { crearDbPrueba } from '../pruebas/dbPrueba';
+import { MENU_LOCAL, cargarDatosEjemplo } from '../seed';
 import type { Db } from '../tipos';
 
 /** Fecha local fija: 8 nov 2026 a la hora indicada. */
@@ -45,20 +46,40 @@ function pedido(items: [productoId: number, cantidad: number, precio: number][],
   };
 }
 
-describe('migraciones y datos de ejemplo', () => {
-  it('crea el esquema y carga 4 categorías y 12 productos la primera vez', async () => {
+describe('migraciones y menú del local', () => {
+  it('crea el esquema y carga el menú del local (6 categorías, 44 productos) la primera vez', async () => {
     const db = await crearDbPrueba();
-    expect(await listarCategorias(db)).toHaveLength(4);
-    expect(await listarProductos(db)).toHaveLength(12);
+    expect((await listarCategorias(db)).map((c) => c.nombre)).toEqual(MENU_LOCAL.map((c) => c.nombre));
+    expect(await listarProductos(db)).toHaveLength(44);
+    expect(await obtenerProducto(db, 1)).toMatchObject({ nombre: 'Salchipapa', precio: 2, activo: 1, ejemplo: 0 });
+    expect(await hayDatosEjemplo(db)).toBe(false);
     const version = await db.get<{ version: number }>('SELECT version FROM schema_version');
     expect(version?.version).toBe(VERSION_ACTUAL);
   });
 
-  it('no vuelve a aplicar migraciones ni a duplicar los datos de ejemplo', async () => {
+  it('no vuelve a aplicar migraciones ni a duplicar el menú', async () => {
     const db = await crearDbPrueba();
     await migrar(db, MIGRACIONES);
     await migrar(db, MIGRACIONES);
-    expect(await listarProductos(db)).toHaveLength(12);
+    expect(await listarProductos(db)).toHaveLength(44);
+  });
+
+  it('en un celular que ya tenía el menú de ejemplo lo reemplaza sin perder el historial', async () => {
+    // Celular con la versión anterior: esquema 2, menú de ejemplo y un pedido.
+    const db = await crearDbPrueba({ migrar: false });
+    await migrar(db, MIGRACIONES.filter((m) => m.version <= 2));
+    await db.transaction((tx) => cargarDatosEjemplo(tx));
+    await guardarPedido(db, pedido([[1, 2, 2.5]]), el8deNoviembre(12)); // 2 × Bolón de verde
+
+    await migrar(db, MIGRACIONES);
+
+    const categorias = await listarCategorias(db);
+    expect(categorias.map((c) => c.nombre)).toEqual([...MENU_LOCAL.map((c) => c.nombre), 'Entradas']);
+    expect(await obtenerProducto(db, 1)).toMatchObject({ nombre: 'Bolón de verde', activo: 0, ejemplo: 0 });
+    expect(await obtenerProducto(db, 2)).toBeNull();
+    expect(await listarProductos(db, { soloDisponibles: true })).toHaveLength(44);
+    expect(await hayDatosEjemplo(db)).toBe(false);
+    expect(await resumenRango(db, '2026-11-08', '2026-11-08')).toMatchObject({ total: 5, pedidos: 1 });
   });
 
   it('crea los índices pedidos.fecha y pedido_items.pedido_id', async () => {
@@ -167,8 +188,8 @@ describe('resúmenes: los pedidos anulados quedan fuera de los totales', () => {
   it('productos más vendidos sin contar los anulados', async () => {
     const top = await productosMasVendidos(db, '2026-11-08', '2026-11-08');
     expect(top).toEqual([
-      { producto_id: 1, nombre: 'Bolón de verde', cantidad: 2, total: 5 },
-      { producto_id: 4, nombre: 'Seco de pollo', cantidad: 2, total: 11 },
+      { producto_id: 1, nombre: 'Salchipapa', cantidad: 2, total: 5 },
+      { producto_id: 4, nombre: 'Papa completa', cantidad: 2, total: 11 },
     ].sort((a, b) => b.cantidad - a.cantidad || b.total - a.total));
   });
 
@@ -194,7 +215,7 @@ describe('menú', () => {
   it('los productos no disponibles no aparecen en la lista para tomar pedidos', async () => {
     await cambiarDisponibilidad(db, 1, false);
     const disponibles = await listarProductos(db, { soloDisponibles: true });
-    expect(disponibles).toHaveLength(11);
+    expect(disponibles).toHaveLength(43);
     expect(disponibles.find((p) => p.id === 1)).toBeUndefined();
   });
 
@@ -209,30 +230,33 @@ describe('menú', () => {
   it('crea, reordena y elimina categorías', async () => {
     const id = await crearCategoria(db, 'Sopas');
     let categorias = await listarCategorias(db);
-    expect(categorias[categorias.length - 1]).toMatchObject({ id, nombre: 'Sopas', orden: 5 });
+    expect(categorias[categorias.length - 1]).toMatchObject({ id, nombre: 'Sopas', orden: 7 });
     await moverCategoria(db, id, -1);
     categorias = await listarCategorias(db);
-    expect(categorias.map((c) => c.nombre)).toEqual(['Entradas', 'Platos fuertes', 'Bebidas', 'Sopas', 'Postres']);
+    expect(categorias.map((c) => c.nombre)).toEqual(['Comida', 'Snacks', 'Helados y galletas', 'Dulces y otros', 'Bebidas', 'Sopas', 'Extras']);
     await expect(eliminarCategoria(db, 1)).rejects.toThrow('tiene productos');
     await eliminarCategoria(db, id);
-    expect(await listarCategorias(db)).toHaveLength(4);
+    expect(await listarCategorias(db)).toHaveLength(6);
   });
 
   it('borra los datos de ejemplo (y desactiva los que ya tienen pedidos)', async () => {
+    await db.transaction((tx) => cargarDatosEjemplo(tx)); // productos 45 a 56; 45 = Bolón de verde
     const propia = await crearCategoria(db, 'Propia');
     await crearProducto(db, { categoria_id: propia, nombre: 'Mío', descripcion: null, precio: 3 });
-    await guardarPedido(db, pedido([[1, 1, 2.5]]), el8deNoviembre(12));
+    await guardarPedido(db, pedido([[45, 1, 2.5]]), el8deNoviembre(12));
     expect(await hayDatosEjemplo(db)).toBe(true);
 
     const resultado = await borrarDatosEjemplo(db);
     expect(resultado).toEqual({ eliminados: 11, desactivados: 1 });
     expect(await hayDatosEjemplo(db)).toBe(false);
     const productos = await listarProductos(db);
-    expect(productos.map((p) => [p.nombre, p.activo])).toEqual([
+    expect(productos).toHaveLength(44 + 2); // el menú del local no se toca
+    expect(productos.filter((p) => p.id > 44).map((p) => [p.nombre, p.activo])).toEqual([
       ['Bolón de verde', 0],
       ['Mío', 1],
     ]);
-    expect((await listarCategorias(db)).map((c) => c.nombre)).toEqual(['Entradas', 'Propia']);
+    const categorias = (await listarCategorias(db)).map((c) => c.nombre);
+    expect([...categorias].sort()).toEqual([...MENU_LOCAL.map((c) => c.nombre), 'Entradas', 'Propia'].sort());
   });
 });
 
@@ -249,7 +273,7 @@ describe('respaldo', () => {
     await guardarPedido(destino, pedido([[3, 1, 3.5]]), new Date(2026, 0, 1, 12));
     await restaurarRespaldo(destino, leerRespaldoDesdeTexto(texto));
 
-    expect(await contarDatos(destino)).toEqual({ categorias: 4, productos: 12, pedidos: 2 });
+    expect(await contarDatos(destino)).toEqual({ categorias: 6, productos: 44, pedidos: 2 });
     expect(await exportarRespaldo(destino, el8deNoviembre(20))).toEqual(respaldo);
     expect(await resumenRango(destino, '2026-11-08', '2026-11-08')).toMatchObject({ total: 5, pedidos: 1 });
     // Después de restaurar se puede seguir numerando pedidos.
@@ -263,7 +287,7 @@ describe('respaldo', () => {
     // Un producto apunta a una categoría inexistente: la restauración falla en la transacción.
     const roto = { ...respaldo, productos: respaldo.productos.map((p) => ({ ...p, categoria_id: 999 })) };
     await expect(restaurarRespaldo(db, roto)).rejects.toThrow();
-    expect(await contarDatos(db)).toEqual({ categorias: 4, productos: 12, pedidos: 0 });
+    expect(await contarDatos(db)).toEqual({ categorias: 6, productos: 44, pedidos: 0 });
   });
 
   it('guarda la fecha del último respaldo', async () => {

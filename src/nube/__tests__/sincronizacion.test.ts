@@ -51,10 +51,10 @@ describe('sincronización con la nube', () => {
 
   it('al vincular con una nube vacía sube todo lo del celular', async () => {
     const nube = nubeFalsa();
-    expect(await contarPendientes(db)).toBeGreaterThan(0); // datos de ejemplo
+    expect(await contarPendientes(db)).toBeGreaterThan(0); // el menú
     expect(await vincular(db, nube.remoto, 'cuenta-1')).toBe('vinculado');
     expect(await contarPendientes(db)).toBe(0);
-    expect(nube.tablas.get('productos')!.size).toBe(12);
+    expect(nube.tablas.get('productos')!.size).toBe(44);
     expect(await cuentaVinculada(db)).toBe('cuenta-1');
   });
 
@@ -99,7 +99,7 @@ describe('sincronización con la nube', () => {
     await guardarPedido(db, PEDIDO, new Date(2026, 10, 8, 12));
     await sincronizar(db, nube.remoto);
 
-    // Celular nuevo con solo los datos de ejemplo.
+    // Celular nuevo con solo el menú.
     const nuevo = await crearDbPrueba();
     expect(await vincular(nuevo, nube.remoto, 'cuenta-1')).toBe('elegir');
     await descargarTodo(nuevo, nube.remoto, 'cuenta-1');
@@ -123,7 +123,7 @@ describe('sincronización con la nube', () => {
     await sincronizar(db, nube.remoto);
     expect(nube.tablas.get('pedidos')!.size).toBe(0);
     expect(nube.tablas.get('pedido_items')!.size).toBe(0);
-    expect(nube.tablas.get('productos')!.size).toBe(12); // el menú no se toca
+    expect(nube.tablas.get('productos')!.size).toBe(44); // el menú no se toca
 
     const nuevo = await guardarPedido(db, PEDIDO, new Date(2026, 10, 8, 14));
     expect(nuevo.numero).toBe(1);
@@ -134,6 +134,6 @@ describe('sincronización con la nube', () => {
     await nube.remoto.subir('categorias', [{ id: 99, nombre: 'Vieja', orden: 0, ejemplo: 0 }]);
     await subirTodo(db, nube.remoto, 'cuenta-1');
     expect(nube.tablas.get('categorias')!.has(99)).toBe(false);
-    expect(nube.tablas.get('categorias')!.size).toBe(4);
+    expect(nube.tablas.get('categorias')!.size).toBe(6);
   });
 });
